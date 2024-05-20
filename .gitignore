@@ -1,0 +1,105 @@
+# Xcode
+#
+# Xcode automatically generates a lot of files that we don't want to track in Git.
+# This file tells Git which files to ignore.
+
+## User-specific files
+*.xcuserdatad
+*.xcuserdata
+
+## Build products
+build/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Various settings
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+*.mode2v3
+!default.mode1v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+## Other
+*.xcworkspace
+xcuserdata/
+*.moved-aside
+*.xcuserstate
+
+## Asset packs
+*.appiconset/Icon-App-*.png
+*.appiconset/[email protected]
+*.appiconset/[email protected]
+*.appiconset/*.png
+
+# Swift Package Manager
+#
+# Add this if you have a `Package.swift` file for your project.
+# Packages/
+# .package.resolved
+# 
+# Add this if you have `*.xcodeproj` projects that include SPM packages.
+# Package.pins
+# 
+# Add this if you have `*.xcworkspace` projects that include SPM packages.
+# xcshareddata/swiftpm/
+
+# CocoaPods
+#
+# We recommend against adding the Pods directory to your .gitignore. However
+# you should judge for yourself, the pros and cons are mentioned at:
+# https://guides.cocoapods.org/using/using-cocoapods.html
+#
+# Pods/
+# 
+# Add this line if you want to avoid checking in source code from your pods.
+# See https://github.com/CocoaPods/CocoaPods/issues/7128 for more info.
+# Pods/**/*.swift
+# 
+# Add this if you support 1.0.0+ CocoaPods.
+# .ruby-version
+# .bundle
+# Gemfile.lock
+# 
+# CocoaPods 1.0.0+  Gemfile
+# Gemfile.lock
+
+# Carthage
+#
+# Add this if you use Carthage.
+# Carthage/Build
+# Carthage/Checkouts
+
+# fastlane
+#
+# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the screenshots.
+# https://github.com/fastlane/fastlane/issues/1507
+# 
+# fastlane/report.xml
+# fastlane/Preview.html
+# fastlane/screenshots
+# fastlane/test_output
+
+# Flutter/Dart/Pub
+#
+# Cache directory for Flutter.
+# .flutter-plugins
+# .flutter-plugins-dependencies
+# .flutter-plugins
+# .package
+# .packages
+# .pub-cache
+# .pub/
+# .dart_tool/
+
+# macOS
+.DS_Store
+
+# Ignore the files related to the Xcode project workspace and settings
+xcuserdata/
+*.xcworkspace/
