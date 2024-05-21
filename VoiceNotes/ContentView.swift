@@ -4,7 +4,7 @@ import Speech
 
 struct VoiceMemo: Identifiable {
     let id = UUID()
-    let timestamp: Date
+    var timestamp: Date
     var audioURL: URL
     var transcription: String
     var transcriptionStatus: String
@@ -13,6 +13,7 @@ struct VoiceMemo: Identifiable {
 class VoiceMemosData: ObservableObject {
     @Published var voiceMemos: [VoiceMemo] = []
     @Published var isRecording = false
+    @Published var isPaused = false
     @Published var audioData: Data?
     
     private let audioEngine = AVAudioEngine()
@@ -83,6 +84,7 @@ class VoiceMemosData: ObservableObject {
         print("Stop recording...")
         audioRecorder?.stop()
         isRecording = false
+        isPaused = false
         
         if let audioFileURL = audioRecorder?.url {
             print("Audio file URL: \(audioFileURL)")
@@ -93,6 +95,7 @@ class VoiceMemosData: ObservableObject {
                         let transcription = try await transcribeAudio(fromURL: audioFileURL)
                         self.voiceMemos[index].transcription = transcription
                         self.voiceMemos[index].transcriptionStatus = "Transcription completed"
+                        self.voiceMemos[index].timestamp = Date()
                     } catch {
                         print("Transcription failed: \(error.localizedDescription)")
                         self.voiceMemos[index].transcriptionStatus = "Transcription failed"
@@ -104,6 +107,18 @@ class VoiceMemosData: ObservableObject {
         }
         
         audioRecorder = nil
+    }
+    
+    func pauseRecording() {
+        print("Pause recording...")
+        audioRecorder?.pause()
+        isPaused = true
+    }
+    
+    func resumeRecording() {
+        print("Resume recording...")
+        audioRecorder?.record()
+        isPaused = false
     }
 
     func transcribeAudio(fromURL audioURL: URL) async throws -> String {
@@ -224,6 +239,7 @@ class VoiceMemosData: ObservableObject {
                         }
                         self.voiceMemos[index].transcription += transcription
                         self.voiceMemos[index].transcriptionStatus = "Transcription completed"
+                        self.voiceMemos[index].timestamp = Date()
                     }
                 } catch {
                     print("Error merging audio files or transcribing: \(error.localizedDescription)")
@@ -237,33 +253,6 @@ class VoiceMemosData: ObservableObject {
         }
         
         audioRecorder = nil
-    }
-
-    func trimAudio(audioURL: URL, startTime: CMTime) async throws -> URL {
-        let asset = AVAsset(url: audioURL)
-        let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A)
-        
-        let trimmedAudioFilename = "trimmed_\(Date().timeIntervalSince1970).m4a"
-        let trimmedAudioFileURL = getDocumentsDirectory().appendingPathComponent(trimmedAudioFilename)
-        
-        exportSession?.outputURL = trimmedAudioFileURL
-        exportSession?.outputFileType = .m4a
-        exportSession?.timeRange = CMTimeRangeMake(start: startTime, duration: CMTimeSubtract(asset.duration, startTime))
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            exportSession?.exportAsynchronously {
-                switch exportSession?.status {
-                case .completed:
-                    continuation.resume(returning: trimmedAudioFileURL)
-                case .failed:
-                    continuation.resume(throwing: exportSession?.error ?? NSError(domain: "TrimAudioError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to trim audio"]))
-                case .cancelled:
-                    continuation.resume(throwing: NSError(domain: "TrimAudioError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Trim audio cancelled"]))
-                default:
-                    continuation.resume(throwing: NSError(domain: "TrimAudioError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Unknown trim audio status"]))
-                }
-            }
-        }
     }
 
     func mergeAudioFiles(originalURL: URL, extendedURL: URL) async throws -> URL {
@@ -323,6 +312,33 @@ class VoiceMemosData: ObservableObject {
             }
         }
     }
+    
+    func trimAudio(audioURL: URL, startTime: CMTime) async throws -> URL {
+        let asset = AVAsset(url: audioURL)
+        let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A)
+        
+        let trimmedAudioFilename = "trimmed_\(Date().timeIntervalSince1970).m4a"
+        let trimmedAudioFileURL = getDocumentsDirectory().appendingPathComponent(trimmedAudioFilename)
+        
+        exportSession?.outputURL = trimmedAudioFileURL
+        exportSession?.outputFileType = .m4a
+        exportSession?.timeRange = CMTimeRangeMake(start: startTime, duration: CMTimeSubtract(asset.duration, startTime))
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            exportSession?.exportAsynchronously {
+                switch exportSession?.status {
+                case .completed:
+                    continuation.resume(returning: trimmedAudioFileURL)
+                case .failed:
+                    continuation.resume(throwing: exportSession?.error ?? NSError(domain: "TrimAudioError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to trim audio"]))
+                case .cancelled:
+                    continuation.resume(throwing: NSError(domain: "TrimAudioError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Trim audio cancelled"]))
+                default:
+                    continuation.resume(throwing: NSError(domain: "TrimAudioError", code: 2, userInfo: [NSLocalizedDescriptionKey: "Unknown trim audio status"]))
+                }
+            }
+        }
+    }
 }
 
 struct ContentView: View {
@@ -330,27 +346,51 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-            List {
-                ForEach(voiceMemosData.voiceMemos) { memo in
-                    NavigationLink(destination: VoiceMemoDetailView(memo: memo)) {
-                        VoiceMemoCell(memo: memo)
+            VStack {
+                List {
+                    ForEach(voiceMemosData.voiceMemos.sorted(by: { $0.timestamp > $1.timestamp })) { memo in
+                        NavigationLink(destination: VoiceMemoDetailView(memo: memo)) {
+                            VoiceMemoCell(memo: memo)
+                        }
                     }
                 }
+                
+                HStack {
+                    if voiceMemosData.isRecording {
+                        if voiceMemosData.isPaused {
+                            Button(action: {
+                                voiceMemosData.resumeRecording()
+                            }) {
+                                Image(systemName: "play.circle")
+                            }
+                            .padding()
+                        } else {
+                            Button(action: {
+                                voiceMemosData.pauseRecording()
+                            }) {
+                                Image(systemName: "pause.circle")
+                            }
+                            .padding()
+                        }
+                        
+                        Button(action: {
+                            voiceMemosData.stopRecording()
+                        }) {
+                            Image(systemName: "stop.circle")
+                        }
+                        .padding()
+                    } else {
+                        Button(action: {
+                            voiceMemosData.startRecording()
+                        }) {
+                            Image(systemName: "mic")
+                        }
+                        .padding()
+                    }
+                }
+                .padding()
             }
             .navigationTitle("Voice Memos")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
-                        if voiceMemosData.isRecording {
-                            voiceMemosData.stopRecording()
-                        } else {
-                            voiceMemosData.startRecording()
-                        }
-                    }) {
-                        Image(systemName: voiceMemosData.isRecording ? "stop.circle" : "mic")
-                    }
-                }
-            }
         }
         .environmentObject(voiceMemosData)
     }
@@ -366,6 +406,7 @@ struct VoiceMemoCell: View {
         HStack {
             VStack(alignment: .leading) {
                 Text(memo.timestamp, style: .date)
+                Text(memo.timestamp, style: .time)
                 Text(memo.transcription)
                     .font(.subheadline)
                     .lineLimit(2) // Preview of the transcription
@@ -401,6 +442,7 @@ struct VoiceMemoDetailView: View {
     @State var memo: VoiceMemo
     @State private var isPlaying = false
     @State private var audioPlayer: AVAudioPlayer?
+    @State private var isTranscribing = false
     @EnvironmentObject private var voiceMemosData: VoiceMemosData
     
     var body: some View {
@@ -409,6 +451,12 @@ struct VoiceMemoDetailView: View {
                 .font(.body)
                 .padding()
                 .navigationTitle("Edit Transcription")
+            
+            if isTranscribing {
+                Text("Transcription in progress...")
+                    .foregroundColor(.gray)
+                    .padding()
+            }
             
             HStack {
                 Button(action: {
@@ -421,13 +469,16 @@ struct VoiceMemoDetailView: View {
                 Button(action: {
                     if isPlaying {
                         audioPlayer?.pause()
+                        isPlaying = false
                     } else {
                         if audioPlayer == nil {
                             audioPlayer = try? AVAudioPlayer(contentsOf: memo.audioURL)
+                            audioPlayer?.delegate = PlayerDelegate(isPlayingBinding: $isPlaying)
                         }
+                        audioPlayer?.currentTime = 0
                         audioPlayer?.play()
+                        isPlaying = true
                     }
-                    isPlaying.toggle()
                 }) {
                     Image(systemName: isPlaying ? "pause.circle" : "play.circle")
                 }
@@ -459,12 +510,28 @@ struct VoiceMemoDetailView: View {
             audioPlayer?.stop()
             audioPlayer = nil
         }
+        .onReceive(voiceMemosData.$isRecording) { isRecording in
+            isTranscribing = isRecording
+        }
         .onAppear {
             // Update the memo transcription in the main list when the view disappears
             if let index = voiceMemosData.voiceMemos.firstIndex(where: { $0.id == memo.id }) {
                 voiceMemosData.voiceMemos[index].transcription = memo.transcription
             }
         }
+    }
+}
+
+class PlayerDelegate: NSObject, AVAudioPlayerDelegate {
+    var isPlayingBinding: Binding<Bool>
+    
+    init(isPlayingBinding: Binding<Bool>) {
+        self.isPlayingBinding = isPlayingBinding
+    }
+    
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        isPlayingBinding.wrappedValue = false
+        player.currentTime = 0
     }
 }
 
